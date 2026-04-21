@@ -1,0 +1,189 @@
+      SUBROUTINE USRINI ( WHAT, SDUM )
+      INCLUDE 'dblprc.inc'
+      INCLUDE 'dimpar.inc'
+      INCLUDE 'iounit.inc'
+      DOUBLE PRECISION WHAT(6)
+      CHARACTER SDUM*8
+
+      DOUBLE PRECISION ZENT, ZCUT, ZMIN, ZMAX
+      INTEGER*8 NEVT, NACC, NRAW
+      INTEGER*8 NLOGMAX, NLOGWRIT
+      LOGICAL LOPEN, LOPENDBG, LEXCL
+      COMMON /NYCONF/ ZENT, ZCUT, ZMIN, ZMAX, LEXCL
+      COMMON /NYSTAT1/ NEVT, NACC, NRAW
+      COMMON /NYSTAT2/ LOPEN, LOPENDBG
+      COMMON /NYLOG/ NLOGMAX, NLOGWRIT
+      SAVE /NYCONF/, /NYSTAT1/, /NYSTAT2/
+      SAVE /NYLOG/
+
+      ZENT  = WHAT(2)
+      ZMIN  = WHAT(3)
+      ZCUT  = WHAT(4)
+      ZMAX  = WHAT(2)
+      LEXCL = WHAT(5) .GT. 0.5D0
+      NLOGMAX = NINT(WHAT(6))
+      IF (NLOGMAX .LT. 0) NLOGMAX = 0
+      NLOGWRIT = 0
+
+      NEVT    = 0
+      NACC    = 0
+      NRAW    = 0
+      LOPEN   = .FALSE.
+      LOPENDBG = .FALSE.
+
+      OPEN ( UNIT = 97, FILE = 'neutron_scoring.dat',
+     &       STATUS = 'UNKNOWN', FORM = 'FORMATTED' )
+      WRITE (97,'(A)')
+     & '# evt nacc_gross nraw_gross'
+      LOPEN = .TRUE.
+
+      IF (NLOGMAX .GT. 0) THEN
+         OPEN ( UNIT = 98, FILE = 'neutron_interaction_particles.dat',
+     &          STATUS = 'UNKNOWN', FORM = 'FORMATTED' )
+         WRITE (98,'(A)')
+     & '# I evt icode mreg jtrack np xsco ysco zsco within_cut'
+         WRITE (98,'(A)')
+     & '# O evt idx kpart is_neutron'
+         LOPENDBG = .TRUE.
+      END IF
+
+      RETURN
+      END
+
+      SUBROUTINE USREIN
+      INCLUDE 'dblprc.inc'
+      INCLUDE 'dimpar.inc'
+      INCLUDE 'iounit.inc'
+
+      DOUBLE PRECISION ZENT, ZCUT, ZMIN, ZMAX
+      INTEGER*8 NEVT, NACC, NRAW
+      INTEGER*8 NLOGMAX, NLOGWRIT
+      LOGICAL LOPEN, LOPENDBG, LEXCL
+      COMMON /NYCONF/ ZENT, ZCUT, ZMIN, ZMAX, LEXCL
+      COMMON /NYSTAT1/ NEVT, NACC, NRAW
+      COMMON /NYSTAT2/ LOPEN, LOPENDBG
+      COMMON /NYLOG/ NLOGMAX, NLOGWRIT
+      SAVE /NYCONF/, /NYSTAT1/, /NYSTAT2/
+      SAVE /NYLOG/
+
+      NEVT    = NEVT + 1
+      NACC    = 0
+      NRAW    = 0
+      RETURN
+      END
+
+      SUBROUTINE USREOU ( NOMORE )
+      INCLUDE 'dblprc.inc'
+      INCLUDE 'dimpar.inc'
+      INCLUDE 'iounit.inc'
+      INTEGER NOMORE
+
+      DOUBLE PRECISION ZENT, ZCUT, ZMIN, ZMAX
+      INTEGER*8 NEVT, NACC, NRAW
+      INTEGER*8 NLOGMAX, NLOGWRIT
+      LOGICAL LOPEN, LOPENDBG, LEXCL
+      COMMON /NYCONF/ ZENT, ZCUT, ZMIN, ZMAX, LEXCL
+      COMMON /NYSTAT1/ NEVT, NACC, NRAW
+      COMMON /NYSTAT2/ LOPEN, LOPENDBG
+      COMMON /NYLOG/ NLOGMAX, NLOGWRIT
+      SAVE /NYCONF/, /NYSTAT1/, /NYSTAT2/
+      SAVE /NYLOG/
+
+      IF (LOPEN) THEN
+         WRITE (97,
+     & '(I12,1X,I12,1X,I12)')
+     &   NEVT, NACC, NRAW
+      END IF
+
+      RETURN
+      END
+
+      SUBROUTINE MGDRAW ( ICODE, MREG )
+      INCLUDE 'dblprc.inc'
+      INCLUDE 'dimpar.inc'
+      INCLUDE 'iounit.inc'
+      INCLUDE 'genstk.inc'
+      INCLUDE 'trackr.inc'
+
+      INTEGER ICODE, MREG, NEWREG, I
+      DOUBLE PRECISION XSCO, YSCO, ZSCO, RULL
+      LOGICAL LWITHI, LNEUT, LLOGOK
+      INTEGER*8 NINTN, NADD
+
+      DOUBLE PRECISION ZENT, ZCUT, ZMIN, ZMAX
+      INTEGER*8 NEVT, NACC, NRAW
+      INTEGER*8 NLOGMAX, NLOGWRIT
+      LOGICAL LOPEN, LOPENDBG, LEXCL
+      COMMON /NYCONF/ ZENT, ZCUT, ZMIN, ZMAX, LEXCL
+      COMMON /NYSTAT1/ NEVT, NACC, NRAW
+      COMMON /NYSTAT2/ LOPEN, LOPENDBG
+      COMMON /NYLOG/ NLOGMAX, NLOGWRIT
+      SAVE /NYCONF/, /NYSTAT1/, /NYSTAT2/
+      SAVE /NYLOG/
+
+      RETURN
+
+      ENTRY USDRAW ( ICODE, MREG, XSCO, YSCO, ZSCO )
+      IF (NP .LE. 0) RETURN
+
+      LWITHI = ZSCO .GE. ZCUT .AND. ZSCO .LE. ZMIN
+
+      NNEUTRONOUT = 0
+      NNEUTRONSEC = 0
+      NNEUTRONOUTACCEPTED = 0
+
+      DO I = 1, NP
+         IF (KPART(I) .EQ. 8) THEN
+            NNEUTRONOUT = NNEUTRONOUT + 1
+            NNEUTRONSEC = NNEUTRONSEC + 1
+            IF (LWITHI) THEN
+               NNEUTRONOUTACCEPTED = NNEUTRONOUTACCEPTED + 1
+            END IF
+         END IF
+      END DO
+
+      LNEUT = (JTRACK .EQ. 8) .OR. (NNEUTRONSEC .GT. 0)
+      LLOGOK = LNEUT .AND. (.NOT. (LEXCL .AND. JTRACK .EQ. 8))
+      IF (LLOGOK .AND. LOPENDBG .AND. NLOGWRIT .LT. NLOGMAX) THEN
+         NLOGWRIT = NLOGWRIT + 1
+         WRITE (98,'(A,1X,I12,1X,I4,1X,I6,1X,I4,1X,I6,1X,3(1PE12.5,1X),L1)')
+     &      'I', NEVT, ICODE, MREG, JTRACK, NP, XSCO, YSCO, ZSCO, LWITHI
+         DO I = 1, NP
+            WRITE (98,'(A,1X,I12,1X,I6,1X,I4,1X,L1)')
+     &         'O', NEVT, I, KPART(I), KPART(I) .EQ. 8
+         END DO
+      END IF
+
+      IF (LEXCL .AND. JTRACK .EQ. 8) THEN
+         NNEUTRONOUT = 0
+         NNEUTRONOUTACCEPTED = 0
+      ELSE IF (JTRACK .EQ. 8) THEN
+         NNEUTRONOUT = NNEUTRONOUT - 1
+         IF (LWITHI) THEN
+            NNEUTRONOUTACCEPTED = NNEUTRONOUTACCEPTED - 1
+         END IF
+      END IF
+
+      IF (NNEUTRONOUTACCEPTED .LT. 0) THEN
+         NNEUTRONOUTACCEPTED = 0
+      END IF
+	   IF (NNEUTRONOUT .LT. 0) THEN
+         NNEUTRONOUT = 0
+      END IF
+
+      NACC    = NACC + NNEUTRONOUTACCEPTED
+      NRAW    = NRAW + NNEUTRONOUT
+      RETURN
+
+      ENTRY BXDRAW ( ICODE, MREG, NEWREG, XSCO, YSCO, ZSCO )
+      RETURN
+
+      ENTRY ENDRAW ( ICODE, MREG, RULL, XSCO, YSCO, ZSCO )
+      RETURN
+
+      ENTRY EEDRAW ( ICODE )
+      RETURN
+
+      ENTRY SODRAW
+      RETURN
+      END
