@@ -1,11 +1,8 @@
-# FLUKA Simple Geometry Cross-Check
+# Muon simulations in FlLUKA for validation of remage
 
-This folder contains a small workflow to:
+This repository contains a small workflow to run muon simulations in [FLUKA](https://fluka.cern/) for simple geometry with `lar`, `water`, and `rock` materials. The purpose of this is to generate reference observables for validating the [remage](https://github.com/legend-exp/remage) simulation framework based on [Geant4](https://geant4.web.cern.ch/). A comparison is shown in the validation suite.
 
-- generate FLUKA input projects for `lar`, `water`, and `rock`
-- compile and run each project with FLUKA user routines
-- post-process neutron yield and residual isotope outputs into JSON files
-
+The workflow will generate FLUKA input files, compile and run them, and post-process neutron yield and isotope production outputs into JSON files. To run the full workflow, the user has to provide FLUKA binaries and set up a Python environment.
 
 ## 1) Setup
 
