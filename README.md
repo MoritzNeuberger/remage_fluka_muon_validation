@@ -21,7 +21,7 @@ pip install -r requirements.txt
 For default behavior, FLUKA binaries must exist at:
 
 ```text
-fluka_simple_geometry_xcheck/sw/fluka4-5.1/bin/
+{repository root}/sw/fluka4-5.1/bin/
 ```
 
 and this directory must contain at least:
