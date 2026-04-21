@@ -1,4 +1,4 @@
-# Muon simulations in FlLUKA for validation of remage
+# Muon simulations in FLUKA for validation of remage
 
 This repository contains a small workflow to run muon simulations in [FLUKA](https://fluka.cern/) for simple geometry with `lar`, `water`, and `rock` materials. The purpose of this is to generate reference observables for validating the [remage](https://github.com/legend-exp/remage) simulation framework based on [Geant4](https://geant4.web.cern.ch/). A comparison is shown in the validation suite.
 
