@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import pyg4ometry as pg4
-from pygeomhpges.materials import make_enriched_germanium
+from pygeomhpges.materials import make_enriched_germanium, enriched_germanium_density
 from pygeomtools.materials import LegendMaterialRegistry
 import tempfile
 import os
@@ -17,11 +17,7 @@ DENSITIES = {
     "lar": 1.396,  # g/cm^3
     "water": 1.0,  # g/cm^3
     "rock": 2.65,  # g/cm^3
-}
-AVERAGE_A = {
-    "lar": 40.0,
-    "water": 14.335,
-    "rock": 22.0,
+    "enrGe": enriched_germanium_density(0.92).magnitude,  # g/cm^3 (approximate for enriched germanium)
 }
 
 def geometry(mat_name: str):
@@ -35,7 +31,7 @@ def geometry(mat_name: str):
     elif mat_name == "rock":
         mat = matreg.rock
     elif mat_name == "enrGe":
-        mat = make_enriched_germanium(reg, "enrGe", enrichment=0.92)
+        mat = make_enriched_germanium(ge76_fraction=0.92, registry=reg)
     else:
         msg = f"unknown material {mat_name}"
         raise ValueError(msg)

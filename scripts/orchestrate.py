@@ -1,18 +1,42 @@
 import run_sims as sims
 import post_proc as postp
 import argparse
-from pathlib import Path
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Orchestrate FLUKA simulations and post-processing.")
-    parser.add_argument("--n-projects-per-material", type=int, default=20, help="Number of projects to generate per material (default: 20).")
+    parser.add_argument("--n-projects-per-case", type=int, default=20, help="Number of projects to generate per case (default: 20).")
     parser.add_argument("--n-threads", type=int, default=20, help="Number of parallel threads for running simulations (default: 20).")
     parser.add_argument("--n-primaries", type=int, default=100000, help="Number of primary events for each simulation (default: 100000).")
+    parser.add_argument(
+        "--post-proc-only",
+        action="store_true",
+        help="Skip simulations and only run post-processing from existing project folders in gen/.",
+    )
     return parser.parse_args()
 
-materials = ["lar", "water", "rock"]
+cases = [
+    ("lar", 100),
+    ("lar", 280),
+    ("water", 100),
+    ("water", 280),
+    ("rock", 100),
+    ("enrGe", 100)
+]
 
 if __name__ == "__main__":
     args = parse_args()
-    project_folders = sims.run_sims(materials, n_projects_per_material=args.n_projects_per_material, n_threads=args.n_threads, n_primaries=args.n_primaries )
+    if args.post_proc_only:
+        print("Post-processing only mode enabled.")
+        print("Ignoring --n-projects-per-case, --n-threads, and --n-primaries.")
+        project_folders = sims.discover_existing_projects(cases)
+        n_discovered = sum(len(folders) for folders in project_folders.values())
+        if n_discovered == 0:
+            raise SystemExit("No existing project folders were found for configured cases. Nothing to post-process.")
+    else:
+        project_folders = sims.run_sims(
+            cases,
+            n_projects_per_case=args.n_projects_per_case,
+            n_threads=args.n_threads,
+            n_primaries=args.n_primaries,
+        )
     postp.post_proc(project_folders)

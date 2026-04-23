@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 import random
 import shutil
+import json
 
 import geometry as geom
 
@@ -18,6 +19,7 @@ def build_input_file(
     energy_gev: float,
     particle: str,
     n_primaries: int,
+    physics_mode: str,
     burnin_z_cm: float = 400,
     seed: int = None,
 ) -> None:
@@ -29,32 +31,50 @@ def build_input_file(
     z_exit_cm = geom_data["z_extent_cm"] / 2
     z_cut_cm = z_entry_cm + depth_cut_cm
 
-    if seed is None:
-        seed = random.randint(1, 999999)
+    if seed is None or seed < 0:
+        seed = random.randint(1, 99999999)
 
     lines = [
         "FREE",
         f"* Auto-generated project: {project_name}",
+        f"* Physics mode={physics_mode}",
         f"* Material={material}, particle={particle}, E={energy_gev:.6g} GeV, primaries={n_primaries}",
         "TITLE",
         f"Muon neutron multiplicity in {material} ({project_name})",
         "DEFAULTS 0.0 0.0 0.0 0.0 0.0 0.0 PRECISIO",
-        f"BEAM {energy_gev:.6g} 0.0 0.0 0.0 0.0 0.0 {particle}",
+        f"BEAM -{energy_gev:.6g} 0.0 0.0 0.0 0.0 0.0 {particle}",
         f"BEAMPOS 0.0 0.0 {beampos_z_cm:.6f}",
         "* Enable muon photonuclear and real-photon photonuclear on detector medium",
         "MUPHOTON 1.0 0.0 0.0 M000 M000 1.0",
         "PHOTONUC 1.0 0.0 0.0 M000 M000 1.0",
-        "IONTRANS -2.0",
-        "PHYSICS 3.0 0.0 0.0 0.0 0.0 0.0 EVAPORAT",
-        geom_data["text"],
-        "* User routine hooks for strict per-event neutron multiplicity",
-        f"USRICALL {depth_cut_cm:.6f} {z_entry_cm:.6f} {z_exit_cm:.6f} {z_cut_cm:.6f} 0.0 0.0 NCOUNT",
-        "USERDUMP 100.0 99.0 7.0 1.0 0.0 0.0 MGDRAW",
-        "RESNUCLEI 3.0 0.0 0.0 0.0 -1",
-        f"RANDOMIZE 1.0 {seed}",
-        f"START {n_primaries}",
-        "STOP",
     ]
+
+    if physics_mode == "isotope":
+        lines.extend(
+            [
+                "IONTRANS -2.0",
+                "PHYSICS 3.0 0.0 0.0 0.0 0.0 0.0 EVAPORAT",
+                geom_data["text"],
+                "RESNUCLEI 3.0 0.0 0.0 0.0 -1",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                geom_data["text"],
+                "* User routine hooks for strict per-event neutron multiplicity",
+                f"USRICALL {depth_cut_cm:.6f} {z_entry_cm:.6f} {z_exit_cm:.6f} {z_cut_cm:.6f} 0.0 1000000000.0 NCOUNT",
+                "USERDUMP 100.0 99.0 7.0 1.0 0.0 0.0 MGDRAW",
+            ]
+        )
+
+    lines.extend(
+        [
+            f"RANDOMIZE 1.0 {seed}",
+            f"START {n_primaries}",
+            "STOP",
+        ]
+    )
 
     filepath.write_text("\n".join(lines), encoding="utf-8")
 
@@ -99,20 +119,20 @@ def parse_args(external_args: list = None) -> argparse.Namespace:
     parser.add_argument(
         "--seed",
         type=int,
-        default=1,
-        help="Random seed value for RANDOMIZE card (default: 1).",
+        default=-1,
+        help="Random seed value for RANDOMIZE card (default: random).",
     )
     parser.add_argument(
         "--output-root",
         type=Path,
         default=DEFAULT_OUTPUT_ROOT,
-        help="Root folder where project folder is created (default: gen/fluka_input).",
+        help="Root folder where project folder is created (default: gen).",
     )
     parser.add_argument(
         "--if-exists",
         choices=("fail", "overwrite", "timestamp"),
         default="overwrite",
-        help="Behavior when project folder exists (default: fail).",
+        help="Behavior when project folder exists (default: overwrite).",
     )
     parser.add_argument(
         "--fluka-bin-path",
@@ -128,6 +148,18 @@ def parse_args(external_args: list = None) -> argparse.Namespace:
             "Optional index to append to project folder name for uniqueness. "
             "If not provided, --if-exists behavior is applied instead."
         ),
+    )
+    parser.add_argument(
+        "--name",
+        type=str,
+        default="project",
+        help="Base name for the project folder (default: project).",
+    )
+    parser.add_argument(
+        "--physics-mode",
+        choices=("neutron", "isotope", "both"),
+        default="both",
+        help="Physics mode to generate (default: both).",
     )
     return parser.parse_args(external_args)
 
@@ -159,6 +191,22 @@ def prepare_project_dir(output_root: Path, project_name: str, if_exists: str, id
     stamped_dir.mkdir(parents=True)
     return stamped_dir
 
+def _mode_seed(seed: int, mode: str) -> int:
+    if seed is None or seed < 0:
+        return random.randint(1, 99999999)
+    if mode == "isotope":
+        return (seed + 1000003) % 900000000
+    return seed
+
+
+def _prepare_mode_dir(project_dir: Path, physics_mode: str, dual_layout: bool) -> Path:
+    if dual_layout:
+        mode_dir = project_dir / physics_mode
+        mode_dir.mkdir(parents=True, exist_ok=True)
+        return mode_dir
+    return project_dir
+
+
 def generate_project(external_args: list = None):
     args = parse_args(external_args)
 
@@ -170,31 +218,80 @@ def generate_project(external_args: list = None):
         raise ValueError("--depth-cut-cm must be >= 0.")
 
     output_root = args.output_root.resolve()
-    project_dir = prepare_project_dir(output_root, args.material, args.if_exists, args.idx)
+    project_name = args.name
+    project_dir = prepare_project_dir(output_root, project_name, args.if_exists, args.idx)
 
-    input_file_path = project_dir / "fluka_input.inp"
-    build_input_file(
-        filepath=input_file_path,
-        project_name=args.material,
-        material=args.material,
-        energy_gev=args.energy_gev,
-        particle=args.beam_particle,
-        n_primaries=args.n_primaries,
-        burnin_z_cm=args.depth_cut_cm,
-        seed=args.seed,
-    )
-	
-    fortran_file_path = project_dir / "neutron_scoring.f"
-    shutil.copy(REPO_ROOT / "scripts" / "misc" / "neutron_scoring.f", fortran_file_path)
-    
-    compile_script_path = project_dir / "compile_and_run.sh"
-    shutil.copy(REPO_ROOT / "scripts" / "misc" / "compile_and_run.sh", compile_script_path)
-    with Path(compile_script_path).open("r", encoding="utf-8") as fh:
-        compile_script_text = fh.read()
-    compile_script_text = compile_script_text.replace("{rel_fluka_bin}", str(args.fluka_bin_path))
-    with Path(compile_script_path).open("w", encoding="utf-8") as fh:
-        fh.write(compile_script_text)
-    return project_dir
+    dual_layout = args.physics_mode == "both"
+    modes = ["neutron", "isotope"] if dual_layout else [args.physics_mode]
+    generated_dirs = {}
+
+    for physics_mode in modes:
+        mode_dir = _prepare_mode_dir(project_dir, physics_mode, dual_layout)
+
+        input_file_path = mode_dir / "fluka_input.inp"
+        mode_seed = _mode_seed(args.seed, physics_mode)
+        build_input_file(
+            filepath=input_file_path,
+            project_name=project_name,
+            material=args.material,
+            energy_gev=args.energy_gev,
+            particle=args.beam_particle,
+            n_primaries=args.n_primaries,
+            physics_mode=physics_mode,
+            burnin_z_cm=args.depth_cut_cm,
+            seed=mode_seed,
+        )
+
+        fortran_file_path = mode_dir / "neutron_scoring.f"
+        shutil.copy(REPO_ROOT / "scripts" / "misc" / "neutron_scoring.f", fortran_file_path)
+
+        compile_script_path = mode_dir / "compile_and_run.sh"
+        shutil.copy(REPO_ROOT / "scripts" / "misc" / "compile_and_run.sh", compile_script_path)
+        with Path(compile_script_path).open("r", encoding="utf-8") as fh:
+            compile_script_text = fh.read()
+        compile_script_text = compile_script_text.replace(
+            "{rel_fluka_bin}",
+            str(args.fluka_bin_path.resolve()),
+        )
+        with Path(compile_script_path).open("w", encoding="utf-8") as fh:
+            fh.write(compile_script_text)
+
+        metadata = {
+            "project_name": project_name,
+            "created_utc": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "physics_mode": physics_mode,
+            "shared_project_name": project_dir.name,
+            "seed": mode_seed,
+            "settings": {
+                "material": args.material,
+                "energy_gev": args.energy_gev,
+                "beam_particle": args.beam_particle,
+                "n_primaries": args.n_primaries,
+                "depth_cut_cm": args.depth_cut_cm,
+            },
+            "run_status": "pending",
+        }
+        with (mode_dir / "project_metadata.json").open("w", encoding="utf-8") as fh:
+            json.dump(metadata, fh, indent=2, sort_keys=True)
+            fh.write("\n")
+
+        generated_dirs[physics_mode] = mode_dir
+
+    if dual_layout:
+        with (project_dir / "project_modes.json").open("w", encoding="utf-8") as fh:
+            json.dump(
+                {
+                    "project_root": str(project_dir),
+                    "modes": {mode: str(path) for mode, path in generated_dirs.items()},
+                },
+                fh,
+                indent=2,
+                sort_keys=True,
+            )
+            fh.write("\n")
+        return project_dir
+
+    return generated_dirs[modes[0]]
 
 if __name__ == "__main__":
     generate_project()
