@@ -12,6 +12,7 @@ def parse_args():
         action="store_true",
         help="Skip simulations and only run post-processing from existing project folders in gen/.",
     )
+    parser.add_argument("--specific-case", type=str, help="Run only a specific case in the format 'material-energy' (e.g., 'lar-100'). Overrides --n-projects-per-case.")
     return parser.parse_args()
 
 cases = [
@@ -25,6 +26,9 @@ cases = [
 
 if __name__ == "__main__":
     args = parse_args()
+    if args.specific_case:
+        material, energy = args.specific_case.split("-")
+        cases = [(material, int(energy))]
     if args.post_proc_only:
         print("Post-processing only mode enabled.")
         print("Ignoring --n-projects-per-case, --n-threads, and --n-primaries.")

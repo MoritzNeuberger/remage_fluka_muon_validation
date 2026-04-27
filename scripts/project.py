@@ -25,7 +25,7 @@ def build_input_file(
 ) -> None:
     geom_data = geom.generate_geometry(material)
 
-    beampos_z_cm = -geom_data["z_extent_cm"] / 2
+    beampos_z_cm = -geom_data["z_extent_cm"] / 2 + 1e-3
     depth_cut_cm = burnin_z_cm
     z_entry_cm = -geom_data["z_extent_cm"] / 2
     z_exit_cm = geom_data["z_extent_cm"] / 2
