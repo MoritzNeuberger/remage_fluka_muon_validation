@@ -6,7 +6,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Orchestrate FLUKA simulations and post-processing.")
     parser.add_argument("--n-projects-per-case", type=int, default=20, help="Number of projects to generate per case (default: 20).")
     parser.add_argument("--n-threads", type=int, default=20, help="Number of parallel threads for running simulations (default: 20).")
-    parser.add_argument("--n-primaries", type=int, default=100000, help="Number of primary events for each simulation (default: 100000).")
+    parser.add_argument("--n-primaries", type=int, default=20000, help="Number of primary events for each simulation (default: 100000).")
     parser.add_argument(
         "--post-proc-only",
         action="store_true",

@@ -46,14 +46,16 @@ def build_input_file(
         f"BEAMPOS 0.0 0.0 {beampos_z_cm:.6f}",
         "* Enable muon photonuclear and real-photon photonuclear on detector medium",
         "MUPHOTON 1.0 0.0 0.0 M000 M000 1.0",
-        "PHOTONUC 1.0 0.0 0.0 M000 M000 1.0",
+        "PHOTONUC 1.0 0.0 0.0 M000 M000 1.0 0.0 ELECTNUC",
+        "PHYSICS 1.0 0.0 0.0 0.0 0.0 0.0 COALESCE",
+        "PHYSICS 2.0 0.0 0.0 0.0 0.0 0.0 EM-DISSO",
+        "PHYSICS 3.0 0.0 0.0 0.0 0.0 0.0 EVAPORAT",
     ]
 
     if physics_mode == "isotope":
         lines.extend(
             [
                 "IONTRANS -2.0",
-                "PHYSICS 3.0 0.0 0.0 0.0 0.0 0.0 EVAPORAT",
                 geom_data["text"],
                 "RESNUCLEI 3.0 0.0 0.0 0.0 -1",
             ]
